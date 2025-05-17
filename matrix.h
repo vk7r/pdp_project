@@ -34,3 +34,7 @@ void print_coo(const COOMatrix *mat);
 void power_method_seq(const COOMatrix *mat, double *x, int max_iter);
 
 void print_vector(double *vector, int n);
+
+double dot_product(const double *a, const double *b, int n);
+
+double compute_eigenvalue(const COOMatrix *mat, const double *x);

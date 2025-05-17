@@ -160,3 +160,30 @@ void print_vector(double *vector, int n)
     }
     printf("\n");
 }
+
+
+double dot_product(const double *a, const double *b, int n)
+{
+    double sum = 0.0;
+    for (int i = 0; i < n; i++)
+    {
+        sum += a[i] * b[i];
+    }
+    return sum;
+}
+
+// Compute eigenvalue lambda = (x^T A x) / (x^T x)
+double compute_eigenvalue(const COOMatrix *mat, const double *x)
+{
+    int n = mat->rows;
+    double *Ax = malloc(n * sizeof(double));
+
+    coo_matvec_mult(mat, x, Ax);
+
+    double numerator = dot_product(x, Ax, n);
+    double denominator = dot_product(x, x, n);
+
+    free(Ax);
+
+    return numerator / denominator;
+}

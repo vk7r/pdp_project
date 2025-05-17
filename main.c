@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     COOMatrix mat = read_and_create_coo(input_matrix_file);
 
     int n = mat.rows;
-    int iterations = 10;
+    int iterations = 100;
 
     // Create the vector x, with 1.0 in all positions 
     double *x = malloc(n * sizeof(double));
@@ -63,9 +63,10 @@ int main(int argc, char **argv)
 
         printf("power method finished.\n");
         // Print result vector
-        // printf("Final vector:\n");
+        // printf("Final eigenvector:\n");
         print_vector(x, vector_size);
 
+        printf("Final eigenvalue: %f\n", compute_eigenvalue(&mat, x));
 
         free_coo(&mat);
         MPI_Finalize();
