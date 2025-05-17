@@ -43,8 +43,9 @@ int main(int argc, char **argv)
     
     for (int i = 0; i < n; i++)
     {
-        x[i] = 1.0; // (double)rand() / RAND_MAX
+        x[i] = 1.0; //((double)rand() / RAND_MAX) * 200.0 - 100.0;
     }
+
 
     //________________________ SEQUENTIAL SOLUTION ________________________//
     //_____________________________________________________________________//
@@ -63,7 +64,8 @@ int main(int argc, char **argv)
         printf("power method finished.\n");
         // Print result vector
         // printf("Final vector:\n");
-        // print_vector(x, vector_size);
+        print_vector(x, vector_size);
+
 
         free_coo(&mat);
         MPI_Finalize();

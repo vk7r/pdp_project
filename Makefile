@@ -6,7 +6,7 @@ BINS = main
 all: $(BINS)
 
 main: matrix.h matrix.c power_method.h power_method.c main.c
-	$(CC) $(CFLAGS) -o $@ power_method.c matrix.c main.c -lm
+	$(CC) $(CFLAGS) -o power_method power_method.c matrix.c main.c -lm
 
 clean:
-	$(RM) $(BINS)
+	$(RM) power_method
