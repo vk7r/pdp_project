@@ -28,10 +28,10 @@ def main():
     
     # Sizes and densities (density smaller for larger matrices)
     configs = [
-        (10, 0.3),       # small, denser
-        (100, 0.1),      # medium size, moderate density
-        (10_000, 0.001), # large, very sparse
-        (100_000, 0.00001)  # huge, extremely sparse
+        # (10, 0.3),       # small, denser
+        # (100, 0.1),      # medium size, moderate density
+        (10_000, 0.01), # large, very sparse
+        # (100_000, 0.00001)  # huge, extremely sparse
     ]
     
     for n, density in configs:

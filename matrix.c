@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <mpi.h>
 #include "matrix.h"
 
 
@@ -88,6 +89,18 @@ void coo_matvec_mult(const COOMatrix *mat, const double *x, double *x_new)
 
 }
 
+void coo_matvec_mult_par(const COOMatrix *mat, const double *x, double *x_new_local, int start_idx, int local_nnz)
+{
+    for (int i = start_idx; i < start_idx + local_nnz; i++)
+    {
+        int r = mat->row[i];
+        int c = mat->col[i];
+        double val = mat->values[i];
+
+        x_new_local[r] += val * x[c];
+    }
+}
+
 void normalize_vector(double *x, int n)
 {
     double norm = 0.0;
@@ -113,14 +126,29 @@ void normalize_vector(double *x, int n)
     }
 }
 
-void power_method_seq(const COOMatrix *mat, double *x, int max_iter)
+// Helper function to compute difference norm between two vectors
+double vector_diff_norm(const double *a, const double *b, int n)
+{
+    double sum = 0.0;
+    for (int i = 0; i < n; i++)
+    {
+        double diff = a[i] - b[i];
+        sum += diff * diff;
+    }
+    return sqrt(sum);
+}
+
+void power_method_seq(const COOMatrix *mat, double *x, int max_iter, double tolerance)
 {
     int n = mat->rows;
     double *x_new = malloc(n * sizeof(double));
 
+    int iter = 0;
+    double diff = tolerance + 1.0; // start bigger than tolerance to enter loop
+    // printf("tolerance: %f\n", tolerance);
+    int result = diff > tolerance;
 
-
-    for (int iter = 0; iter < max_iter; iter++)
+    while (iter < max_iter && diff > tolerance)
     {
 
         // Ax
@@ -129,28 +157,69 @@ void power_method_seq(const COOMatrix *mat, double *x, int max_iter)
         // x / ||x||
         normalize_vector(x_new, n);
 
+        // Calculate difference norm between x_new and x_old
+        diff = vector_diff_norm(x_new, x, n);
+        // printf("Iteration %d, new diff: %e\n", iter, diff);
+
         // copy x_new -> x
         for (int i = 0; i < n; i++)
         {
             // printf("x[%d] = %f\n", i, x[i]);
             x[i] = x_new[i];
         }
-
-        
-        // memcpy(x, x_new, n * sizeof(double));
-
-        // print_vector(x_new, n);
+        iter++;
 
     }
 
-    // printf("x_new\n");
-    // print_vector(x_new, n);
-
-    // printf("x\n");
-    // print_vector(x, n);
-
     free(x_new);
 }
+
+void power_method_par(const COOMatrix *mat, double *x, int max_iter, double tolerance, int start_idx, int local_nnz)
+{
+    int n = mat->rows;
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    double *x_new_local = calloc(n, sizeof(double)); // partial Ax for this rank
+    double *x_new = malloc(n * sizeof(double));      // combined Ax after allreduce
+
+    int iter = 0;
+    double diff = tolerance + 1.0;
+
+    while (iter < max_iter && diff > tolerance)
+    {
+
+
+        // zero out local vector
+        for (int i = 0; i < n; i++)
+        {
+            x_new_local[i] = 0.0;
+        }
+
+        // printf("Rank %d, IM DOING from %d to %d\n", rank, start_idx, start_idx + local_nnz);
+
+        coo_matvec_mult_par(mat, x, x_new_local, start_idx, local_nnz);
+
+        // Combine the local vector results of all ranks 
+        MPI_Allreduce(x_new_local, x_new, n, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+        normalize_vector(x_new, n);
+
+        diff = vector_diff_norm(x_new, x, n);
+
+        for (int i = 0; i < n; i++)
+        {
+            x[i] = x_new[i];
+        }
+
+        iter++;
+    }
+
+    free(x_new_local);
+    free(x_new);
+}
+
 
 void print_vector(double *vector, int n)
 {
@@ -187,3 +256,36 @@ double compute_eigenvalue(const COOMatrix *mat, const double *x)
 
     return numerator / denominator;
 }
+
+// Checks if the eigenpair (x, λ) is valid
+double validate_eigenpair(const COOMatrix *mat, const double *x, double lambda)
+{
+    int n = mat->rows;
+    double *Ax = malloc(n * sizeof(double));
+    double residual = 0.0;
+
+    coo_matvec_mult(mat, x, Ax); // Compute Ax
+
+    for (int i = 0; i < n; i++)
+    {
+        double diff = Ax[i] - lambda * x[i]; // r = Ax - λx
+        residual += diff * diff;
+    }
+
+    free(Ax);
+
+    // printf("Checking residual norm ||Ax - λx||: %e\n", residual);
+    if (residual < 1e-6)
+    {
+        printf("The eigenpair is CORRECT.\n");
+    }
+    else
+    {
+        printf("The eigenpair is NOT accurate!\n");
+
+        exit(EXIT_FAILURE);
+    }
+
+    return sqrt(residual); // ||r||
+}
+

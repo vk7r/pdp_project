@@ -27,14 +27,22 @@ COOMatrix read_and_create_coo(const char *filename);
 
 void coo_matvec_mult(const COOMatrix *mat, const double *x, double *y);
 
-void normalize_vector(double *x, int n);
+void coo_matvec_mult_par(const COOMatrix *mat, const double *x, double *x_new, int start_idx, int local_nnz);
+
+    void normalize_vector(double *x, int n);
 
 void print_coo(const COOMatrix *mat);
 
-void power_method_seq(const COOMatrix *mat, double *x, int max_iter);
+void power_method_seq(const COOMatrix *mat, double *x, int max_iter, double tolerance);
+
+void power_method_par(const COOMatrix *mat, double *x, int max_iter, double tolerance, int start_idx, int local_nnz);
 
 void print_vector(double *vector, int n);
 
 double dot_product(const double *a, const double *b, int n);
 
 double compute_eigenvalue(const COOMatrix *mat, const double *x);
+
+double validate_eigenpair(const COOMatrix *mat, const double *x, double lambda);
+
+double vector_diff_norm(const double *a, const double *b, int n);

@@ -4,12 +4,18 @@
 #include "matrix.h"
 #include "power_method.h"
 
+#define MAX_ITER 1000000000
+#define TOLERANCE 1e-8
+
 // CSR or COO format ? --> CSR the better
 
 // Parses the input 
 // sets the values of the variables
 // Calls the Power method
 // Print results
+
+// Distribute from root function??
+
 int main(int argc, char **argv)
 {
 
@@ -32,55 +38,121 @@ int main(int argc, char **argv)
 
     const char *input_matrix_file = argv[1];
 
-    COOMatrix mat = read_and_create_coo(input_matrix_file);
-
-    int n = mat.rows;
-    int iterations = 100;
-
-    // Create the vector x, with 1.0 in all positions 
-    double *x = malloc(n * sizeof(double));
-    int vector_size = n;
-    
-    for (int i = 0; i < n; i++)
-    {
-        x[i] = 1.0; //((double)rand() / RAND_MAX) * 200.0 - 100.0;
-    }
-
-
-    //________________________ SEQUENTIAL SOLUTION ________________________//
-    //_____________________________________________________________________//
+    // ===============================================================
+    //                           SEQUENTIAL SOLUTION
+    // ===============================================================
     if(size == 1)
     {
-        printf("Running sequential...\n");
-    
-        // print_coo(&mat);
+        // printf("Running sequential...\n\n");
+        COOMatrix mat = read_and_create_coo(input_matrix_file);
         
-        // printf("Initial vector:\n");
+        int n = mat.rows;
+        int max_iterations = MAX_ITER;
+        double tolerance = TOLERANCE;
+
+        // Create the vector x, with 1.0 in all positions
+        double *x = malloc(n * sizeof(double));
+        int vector_size = n;
+        
+        for (int i = 0; i < n; i++)
+        {
+            x[i] = 1.0; //((double)rand() / RAND_MAX) * 200.0 - 100.0;
+        }
+        
+        double start = MPI_Wtime();
+        power_method_seq(&mat, x, max_iterations, tolerance);
+        double execution_time = MPI_Wtime() - start;
+        
+        // printf("Finished power method.\n\n");
+
         // print_vector(x, vector_size);
 
-        printf("Performing power method for %d iterations:\n", iterations);
-        power_method_seq(&mat,x,iterations);
+        double eigenvalue = compute_eigenvalue(&mat, x);
+        // printf("Final eigenvalue: %f\n\n", eigenvalue);
 
-        printf("power method finished.\n");
-        // Print result vector
-        // printf("Final eigenvector:\n");
-        print_vector(x, vector_size);
+        // Validate eigenpair
+        double res = validate_eigenpair(&mat, x, eigenvalue);
 
-        printf("Final eigenvalue: %f\n", compute_eigenvalue(&mat, x));
+        printf("execution time: %f seconds\n\n", execution_time);
 
         free_coo(&mat);
         MPI_Finalize();
         return 0;
     }
 
-
-    //________________________ PARALLEL SOLUTION __________________________//
-    //_____________________________________________________________________//
+    // ===============================================================
+    //                           PARALLEL SOLUTION
+    // ===============================================================
     else
     {
-        printf("Running parallel...\n");
-        // Parallel code here
-        print_coo(&mat);
+        if(rank== 0)
+        {
+            // printf("Running parallel...\n\n");
+        }
+
+        COOMatrix mat = read_and_create_coo(input_matrix_file);
+
+        int n = mat.rows;
+        int max_iterations = MAX_ITER;
+        double tolerance = TOLERANCE;
+
+        // Create the vector x, with 1.0 in all positions
+        double *x = malloc(n * sizeof(double));
+        int vector_size = n;
+
+        for (int i = 0; i < n; i++)
+        {
+            x[i] = 1.0; //((double)rand() / RAND_MAX) * 200.0 - 100.0;
+        }
+
+        // Calculate chunk info — what portion of COO entries each rank handles
+        int chunk_size = mat.nnz / size;
+        int remainder = mat.nnz % size;
+
+        int local_nnz;
+        int start_idx;
+
+        // compute chunks for each rank. dont have to send anything, since each process has access to the whole matrix
+        if (rank < remainder)
+        {
+            local_nnz = chunk_size + 1;
+            start_idx = rank * local_nnz;
+        }
+        else
+        {
+            local_nnz = chunk_size;
+            start_idx = rank * local_nnz + remainder;
+        }
+
+        // printf("Rank %d: chunk = [%d, %d] local_nnz = %d\n", rank, start_idx, start_idx + local_nnz, local_nnz);
+
+        // printf("Rank %d: local_nnz = %d, start_idx = %d\n", rank, local_nnz, start_idx);
+
+        double start = MPI_Wtime();
+
+        power_method_par(&mat, x, max_iterations, tolerance, start_idx, local_nnz);
+
+        double execution_time = MPI_Wtime() - start;
+
+        double max_time;
+        MPI_Reduce(&execution_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+        if(rank == 0)
+        {
+            // printf("Finished power method.\n\n");
+
+            // print_vector(x, vector_size);
+
+            double eigenvalue = compute_eigenvalue(&mat, x);
+            // printf("Final eigenvalue: %f\n\n", eigenvalue);
+
+            // Validate eigenpair
+            double res = validate_eigenpair(&mat, x, eigenvalue);
+
+            printf("Max execution time: %f seconds\n\n", execution_time);
+        }
+        
+        // print_coo(&mat);
         free_coo(&mat);
         MPI_Finalize();
         return 0;
