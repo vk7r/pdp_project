@@ -16,6 +16,58 @@
 
 // Distribute from root function??
 
+void distribute_from_root(COOMatrix *mat, int rank, int size, int *start_idx)
+{
+    COOMatrix full_mat;
+    int *sendcounts = malloc(size * sizeof(int));
+    int *chunk_starts = malloc(size * sizeof(int));
+
+    if (rank == 0)
+    {
+        full_mat = *mat;
+        int chunk_size = full_mat.nnz / size;
+        int remainder = full_mat.nnz % size;
+        int offset = 0;
+        for (int i = 0; i < size; i++)
+        {
+            sendcounts[i] = (i < remainder) ? chunk_size + 1 : chunk_size;
+            chunk_starts[i] = offset;
+            offset += sendcounts[i];
+        }
+    }
+
+    int nrows, ncols;
+    if (rank == 0)
+    {
+        nrows = full_mat.rows;
+        ncols = full_mat.cols;
+    }
+    MPI_Bcast(&nrows, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Bcast(&ncols, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    int local_nnz;
+    MPI_Scatter(sendcounts, 1, MPI_INT, &local_nnz, 1, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Scatter(chunk_starts, 1, MPI_INT, start_idx, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    mat->nnz = local_nnz;
+    mat->rows = nrows;
+    mat->cols = ncols;
+
+    mat->row = malloc(local_nnz * sizeof(int));
+    mat->col = malloc(local_nnz * sizeof(int));
+    mat->values = malloc(local_nnz * sizeof(double));
+
+    MPI_Scatterv(full_mat.row, sendcounts, chunk_starts, MPI_INT,
+                 mat->row, local_nnz, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(full_mat.col, sendcounts, chunk_starts, MPI_INT,
+                 mat->col, local_nnz, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Scatterv(full_mat.values, sendcounts, chunk_starts, MPI_DOUBLE,
+                 mat->values, local_nnz, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    free(sendcounts);
+    free(chunk_starts);
+}
+
 int main(int argc, char **argv)
 {
 
@@ -68,7 +120,7 @@ int main(int argc, char **argv)
         // print_vector(x, vector_size);
 
         double eigenvalue = compute_eigenvalue(&mat, x);
-        // printf("Final eigenvalue: %f\n\n", eigenvalue);
+        // printf("Final dominant eigenvalue: %f\n\n", eigenvalue);
 
         // Validate eigenpair
         double res = validate_eigenpair(&mat, x, eigenvalue);
@@ -85,11 +137,57 @@ int main(int argc, char **argv)
     // ===============================================================
     else
     {
-        if(rank== 0)
-        {
-            // printf("Running parallel...\n\n");
-        }
 
+        // COOMatrix mat;
+        // int start_idx = 0;
+
+        // if (rank == 0)
+        // {
+        //     mat = read_and_create_coo(input_matrix_file);
+        // }
+
+        // distribute_from_root(&mat, rank, size, &start_idx);
+
+        // printf("Rank %d: chunk = [%d, %d] local_nnz = %d\n", rank, start_idx, start_idx + mat.nnz, mat.nnz);
+
+        // int local_nnz = mat.nnz;
+        // int n = mat.rows;
+
+        // double *x = malloc(n * sizeof(double));
+        // int vector_size = n;
+        // int max_iterations = MAX_ITER;
+        // double tolerance = TOLERANCE;
+
+        // for (int i = 0; i < n; i++)
+        // {
+        //     x[i] = 1.0; //((double)rand() / RAND_MAX) * 200.0 - 100.0;
+        // }
+
+        // double start = MPI_Wtime();
+
+        // power_method_par(&mat, x, max_iterations, tolerance, start_idx, local_nnz);
+
+        // double execution_time = MPI_Wtime() - start;
+
+        // double max_time;
+        // MPI_Reduce(&execution_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+        // if(rank == 0)
+        // {
+        //     // printf("Finished power method.\n\n");
+
+        //     // print_vector(x, vector_size);
+
+        //     double eigenvalue = compute_eigenvalue(&mat, x);
+        //     printf("Final Dominant eigenvalue: %f\n\n", eigenvalue);
+
+        //     // Validate eigenpair
+        //     double res = validate_eigenpair(&mat, x, eigenvalue);
+
+        //     printf("Max execution time: %f seconds\n\n", execution_time);
+        // }
+
+        // HERE
         COOMatrix mat = read_and_create_coo(input_matrix_file);
 
         int n = mat.rows;
@@ -144,7 +242,7 @@ int main(int argc, char **argv)
             // print_vector(x, vector_size);
 
             double eigenvalue = compute_eigenvalue(&mat, x);
-            // printf("Final eigenvalue: %f\n\n", eigenvalue);
+            printf("Final Dominant eigenvalue: %f\n\n", eigenvalue);
 
             // Validate eigenpair
             double res = validate_eigenpair(&mat, x, eigenvalue);

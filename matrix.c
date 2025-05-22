@@ -91,6 +91,7 @@ void coo_matvec_mult(const COOMatrix *mat, const double *x, double *x_new)
 
 void coo_matvec_mult_par(const COOMatrix *mat, const double *x, double *x_new_local, int start_idx, int local_nnz)
 {
+    // for(int i = 0; i < local_nnz; i++)
     for (int i = start_idx; i < start_idx + local_nnz; i++)
     {
         int r = mat->row[i];
