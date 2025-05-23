@@ -1,0 +1,5 @@
+#ignore datafiles
+*.mtx
+
+# ignore main exetubale
+power_method

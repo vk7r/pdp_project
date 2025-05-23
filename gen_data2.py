@@ -25,21 +25,42 @@ def save_coo_matrix_market(matrix, filename):
 
 def main():
     os.makedirs('coo_input_data', exist_ok=True)
-    
-    # Sizes and densities (density smaller for larger matrices)
-    configs = [
-        # (10, 0.3),       # small, denser
-        # (100, 0.1),      # medium size, moderate density
-        (10_000, 0.1), # large, very sparse
-        # (100_000, 0.00001)  # huge, extremely sparse
-    ]
-    
-    for n, density in configs:
-        print(f"Generating matrix {n}x{n} with density {density}")
-        matrix = generate_sparse_coo_matrix(n, density)
-        filename = f"coo_input_data/matrix_{n}x{n}_d{int(density*100)}.mtx"
-        save_coo_matrix_market(matrix, filename)
-        print(f"Saved {filename} with {matrix.nnz} nonzeros")
+
+    # Define sizes
+    sizes = [100, 1000, 10_000, 100_000]
+
+    # Define three levels of density: sparse, medium, dense
+    density_levels = [0.001, 0.01, 0.1]  # Adjust as needed for your case
+
+    for n in sizes:
+        for density in density_levels:
+            print(f"Generating matrix {n}x{n} with density {density}")
+            matrix = generate_sparse_coo_matrix(n, density)
+            density_str = f"{density:.5f}".replace('.', '_')
+            filename = f"new_coo_input_data/matrix_{n}x{n}_d{density_str}.mtx"
+            save_coo_matrix_market(matrix, filename)
+            print(f"Saved {filename} with {matrix.nnz} nonzeros")
 
 if __name__ == "__main__":
     main()
+
+# def main():
+#     os.makedirs('coo_input_data', exist_ok=True)
+    
+#     # Sizes and densities (density smaller for larger matrices)
+#     configs = [
+#         (100, 0.3),
+#         (1000, 0.1),
+#         (10_000, 0.1),
+#         (100_000, 0.00001)
+#     ]
+    
+#     for n, density in configs:
+#         print(f"Generating matrix {n}x{n} with density {density}")
+#         matrix = generate_sparse_coo_matrix(n, density)
+#         filename = f"coo_input_data/matrix_{n}x{n}_d{int(density*100)}.mtx"
+#         save_coo_matrix_market(matrix, filename)
+#         print(f"Saved {filename} with {matrix.nnz} nonzeros")
+
+# if __name__ == "__main__":
+#     main()
