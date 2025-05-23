@@ -30,7 +30,7 @@ def main():
     configs = [
         # (10, 0.3),       # small, denser
         # (100, 0.1),      # medium size, moderate density
-        (10_000, 0.01), # large, very sparse
+        (10_000, 0.1), # large, very sparse
         # (100_000, 0.00001)  # huge, extremely sparse
     ]
     

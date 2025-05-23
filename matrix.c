@@ -5,8 +5,8 @@
 #include <mpi.h>
 #include "matrix.h"
 
-
-COOMatrix create_coo(int nnz, int rows, int cols) {
+COOMatrix create_coo(int nnz, int rows, int cols)
+{
     COOMatrix mat;
     mat.nnz = nnz;
     mat.rows = rows;
@@ -24,7 +24,8 @@ void free_coo(COOMatrix *mat)
     free(mat->values);
 }
 
-COOMatrix read_and_create_coo(const char *filename) {
+COOMatrix read_and_create_coo(const char *filename)
+{
     FILE *f = fopen(filename, "r");
 
     // Skips first header line in file (%%MatrixMarket)
@@ -38,7 +39,8 @@ COOMatrix read_and_create_coo(const char *filename) {
 
     int rows, cols, nnz;
 
-    if(fscanf(f, "%d %d %d", &rows, &cols, &nnz) != 3) {
+    if (fscanf(f, "%d %d %d", &rows, &cols, &nnz) != 3)
+    {
         fprintf(stderr, "Error reading matrix dimensions\n");
         fclose(f);
         exit(EXIT_FAILURE);
@@ -47,8 +49,10 @@ COOMatrix read_and_create_coo(const char *filename) {
     COOMatrix mat = create_coo(nnz, rows, cols);
 
     // Populate the COO matrix
-    for (int i = 0; i < nnz; ++i) {
-        if (fscanf(f, "%d %d %lf", &mat.row[i], &mat.col[i], &mat.values[i]) != 3) {
+    for (int i = 0; i < nnz; ++i)
+    {
+        if (fscanf(f, "%d %d %lf", &mat.row[i], &mat.col[i], &mat.values[i]) != 3)
+        {
 
             fprintf(stderr, "Error reading matrix data\n");
             free_coo(&mat);
@@ -66,10 +70,11 @@ COOMatrix read_and_create_coo(const char *filename) {
     return mat;
 }
 
-
-void print_coo(const COOMatrix *mat) {
+void print_coo(const COOMatrix *mat)
+{
     printf("COO Matrix %dx%d:\n", mat->rows, mat->cols);
-    for (int i = 0; i < mat->nnz; ++i) {
+    for (int i = 0; i < mat->nnz; ++i)
+    {
         printf("Row: %d, Col: %d, Value: %.2f\n", mat->row[i], mat->col[i], mat->values[i]);
     }
 }
@@ -86,20 +91,6 @@ void coo_matvec_mult(const COOMatrix *mat, const double *x, double *x_new)
     {
         x_new[mat->row[i]] += mat->values[i] * x[mat->col[i]];
     }
-
-}
-
-void coo_matvec_mult_par(const COOMatrix *mat, const double *x, double *x_new_local, int start_idx, int local_nnz)
-{
-    // for(int i = 0; i < local_nnz; i++)
-    for (int i = start_idx; i < start_idx + local_nnz; i++)
-    {
-        int r = mat->row[i];
-        int c = mat->col[i];
-        double val = mat->values[i];
-
-        x_new_local[r] += val * x[c];
-    }
 }
 
 void normalize_vector(double *x, int n)
@@ -111,7 +102,7 @@ void normalize_vector(double *x, int n)
     {
         norm += x[i] * x[i];
     }
-    
+
     norm = sqrt(norm);
 
     if (norm < 1e-10)
@@ -149,12 +140,13 @@ void power_method_seq(const COOMatrix *mat, double *x, int max_iter, double tole
     // printf("tolerance: %f\n", tolerance);
     int result = diff > tolerance;
 
-    while (iter < max_iter && diff > tolerance)
+    // Will loop until diff is smaller than tolerance
+    while (diff > tolerance) // iter < max_iter &&
     {
 
         // Ax
         coo_matvec_mult(mat, x, x_new);
-        
+
         // x / ||x||
         normalize_vector(x_new, n);
 
@@ -162,20 +154,22 @@ void power_method_seq(const COOMatrix *mat, double *x, int max_iter, double tole
         diff = vector_diff_norm(x_new, x, n);
         // printf("Iteration %d, new diff: %e\n", iter, diff);
 
+        memcpy(x, x_new, n * sizeof(double));
         // copy x_new -> x
-        for (int i = 0; i < n; i++)
-        {
-            // printf("x[%d] = %f\n", i, x[i]);
-            x[i] = x_new[i];
-        }
-        iter++;
+        // for (int i = 0; i < n; i++)
+        // {
+        //     // printf("x[%d] = %f\n", i, x[i]);
+        //     x[i] = x_new[i];
+        // }
 
+        // iter++;
     }
 
     free(x_new);
 }
 
-void power_method_par(const COOMatrix *mat, double *x, int max_iter, double tolerance, int start_idx, int local_nnz)
+
+void power_method_par(const COOMatrix *mat, double *x, int max_iter, double tolerance)
 {
     int n = mat->rows;
     int rank, size;
@@ -188,9 +182,8 @@ void power_method_par(const COOMatrix *mat, double *x, int max_iter, double tole
     int iter = 0;
     double diff = tolerance + 1.0;
 
-    while (iter < max_iter && diff > tolerance)
+    while (diff > tolerance) // iter < max_iter &&
     {
-
 
         // zero out local vector
         for (int i = 0; i < n; i++)
@@ -200,27 +193,30 @@ void power_method_par(const COOMatrix *mat, double *x, int max_iter, double tole
 
         // printf("Rank %d, IM DOING from %d to %d\n", rank, start_idx, start_idx + local_nnz);
 
-        coo_matvec_mult_par(mat, x, x_new_local, start_idx, local_nnz);
+        coo_matvec_mult(mat, x, x_new_local);
 
-        // Combine the local vector results of all ranks 
+        // Combine the local vector results of all ranks
         MPI_Allreduce(x_new_local, x_new, n, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
         normalize_vector(x_new, n);
 
         diff = vector_diff_norm(x_new, x, n);
 
-        for (int i = 0; i < n; i++)
-        {
-            x[i] = x_new[i];
-        }
+        memcpy(x, x_new, n * sizeof(double));
+        // for (int i = 0; i < n; i++)
+        // {
+        //     x[i] = x_new[i];
+        // }
 
         iter++;
+
+        // printf("Rank %d:\n", rank);
+        // print_vector(x_new, n);
     }
 
     free(x_new_local);
     free(x_new);
 }
-
 
 void print_vector(double *vector, int n)
 {
@@ -230,7 +226,6 @@ void print_vector(double *vector, int n)
     }
     printf("\n");
 }
-
 
 double dot_product(const double *a, const double *b, int n)
 {
@@ -289,4 +284,3 @@ double validate_eigenpair(const COOMatrix *mat, const double *x, double lambda)
 
     return sqrt(residual); // ||r||
 }
-

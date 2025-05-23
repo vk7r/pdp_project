@@ -35,7 +35,8 @@ void print_coo(const COOMatrix *mat);
 
 void power_method_seq(const COOMatrix *mat, double *x, int max_iter, double tolerance);
 
-void power_method_par(const COOMatrix *mat, double *x, int max_iter, double tolerance, int start_idx, int local_nnz);
+// void power_method_par(const COOMatrix *mat, double *x, int max_iter, double tolerance, int start_idx, int local_nnz);
+void power_method_par(const COOMatrix *mat, double *x, int max_iter, double tolerance);
 
 void print_vector(double *vector, int n);
 

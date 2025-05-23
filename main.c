@@ -16,7 +16,7 @@
 
 // Distribute from root function??
 
-void distribute_from_root(COOMatrix *mat, int rank, int size, int *start_idx)
+void distribute_from_root(COOMatrix *mat, int rank, int size)
 {
     COOMatrix full_mat;
     int *sendcounts = malloc(size * sizeof(int));
@@ -47,7 +47,6 @@ void distribute_from_root(COOMatrix *mat, int rank, int size, int *start_idx)
 
     int local_nnz;
     MPI_Scatter(sendcounts, 1, MPI_INT, &local_nnz, 1, MPI_INT, 0, MPI_COMM_WORLD);
-    MPI_Scatter(chunk_starts, 1, MPI_INT, start_idx, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     mat->nnz = local_nnz;
     mat->rows = nrows;
@@ -65,7 +64,6 @@ void distribute_from_root(COOMatrix *mat, int rank, int size, int *start_idx)
                  mat->values, local_nnz, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     free(sendcounts);
-    free(chunk_starts);
 }
 
 int main(int argc, char **argv)
@@ -120,7 +118,7 @@ int main(int argc, char **argv)
         // print_vector(x, vector_size);
 
         double eigenvalue = compute_eigenvalue(&mat, x);
-        // printf("Final dominant eigenvalue: %f\n\n", eigenvalue);
+        printf("Final dominant eigenvalue: %f\n\n", eigenvalue);
 
         // Validate eigenpair
         double res = validate_eigenpair(&mat, x, eigenvalue);
@@ -138,97 +136,35 @@ int main(int argc, char **argv)
     else
     {
 
-        // COOMatrix mat;
-        // int start_idx = 0;
+        COOMatrix mat;
+        COOMatrix full_mat;
 
-        // if (rank == 0)
-        // {
-        //     mat = read_and_create_coo(input_matrix_file);
-        // }
+        if (rank == 0)
+        {
+            full_mat = read_and_create_coo(input_matrix_file);
+            mat = full_mat; // mat gets overwritten later anyway
+        }
 
-        // distribute_from_root(&mat, rank, size, &start_idx);
+        distribute_from_root(&mat, rank, size);
 
         // printf("Rank %d: chunk = [%d, %d] local_nnz = %d\n", rank, start_idx, start_idx + mat.nnz, mat.nnz);
 
-        // int local_nnz = mat.nnz;
-        // int n = mat.rows;
-
-        // double *x = malloc(n * sizeof(double));
-        // int vector_size = n;
-        // int max_iterations = MAX_ITER;
-        // double tolerance = TOLERANCE;
-
-        // for (int i = 0; i < n; i++)
-        // {
-        //     x[i] = 1.0; //((double)rand() / RAND_MAX) * 200.0 - 100.0;
-        // }
-
-        // double start = MPI_Wtime();
-
-        // power_method_par(&mat, x, max_iterations, tolerance, start_idx, local_nnz);
-
-        // double execution_time = MPI_Wtime() - start;
-
-        // double max_time;
-        // MPI_Reduce(&execution_time, &max_time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
-
-        // if(rank == 0)
-        // {
-        //     // printf("Finished power method.\n\n");
-
-        //     // print_vector(x, vector_size);
-
-        //     double eigenvalue = compute_eigenvalue(&mat, x);
-        //     printf("Final Dominant eigenvalue: %f\n\n", eigenvalue);
-
-        //     // Validate eigenpair
-        //     double res = validate_eigenpair(&mat, x, eigenvalue);
-
-        //     printf("Max execution time: %f seconds\n\n", execution_time);
-        // }
-
-        // HERE
-        COOMatrix mat = read_and_create_coo(input_matrix_file);
-
+        int local_nnz = mat.nnz;
         int n = mat.rows;
-        int max_iterations = MAX_ITER;
-        double tolerance = TOLERANCE;
 
-        // Create the vector x, with 1.0 in all positions
         double *x = malloc(n * sizeof(double));
         int vector_size = n;
+        int max_iterations = MAX_ITER;
+        double tolerance = TOLERANCE;
 
         for (int i = 0; i < n; i++)
         {
             x[i] = 1.0; //((double)rand() / RAND_MAX) * 200.0 - 100.0;
         }
 
-        // Calculate chunk info — what portion of COO entries each rank handles
-        int chunk_size = mat.nnz / size;
-        int remainder = mat.nnz % size;
-
-        int local_nnz;
-        int start_idx;
-
-        // compute chunks for each rank. dont have to send anything, since each process has access to the whole matrix
-        if (rank < remainder)
-        {
-            local_nnz = chunk_size + 1;
-            start_idx = rank * local_nnz;
-        }
-        else
-        {
-            local_nnz = chunk_size;
-            start_idx = rank * local_nnz + remainder;
-        }
-
-        // printf("Rank %d: chunk = [%d, %d] local_nnz = %d\n", rank, start_idx, start_idx + local_nnz, local_nnz);
-
-        // printf("Rank %d: local_nnz = %d, start_idx = %d\n", rank, local_nnz, start_idx);
-
         double start = MPI_Wtime();
 
-        power_method_par(&mat, x, max_iterations, tolerance, start_idx, local_nnz);
+        power_method_par(&mat, x, max_iterations, tolerance);
 
         double execution_time = MPI_Wtime() - start;
 
@@ -241,13 +177,15 @@ int main(int argc, char **argv)
 
             // print_vector(x, vector_size);
 
-            double eigenvalue = compute_eigenvalue(&mat, x);
-            printf("Final Dominant eigenvalue: %f\n\n", eigenvalue);
+            double eigenvalue = compute_eigenvalue(&full_mat, x);
+            printf("Final Dominant eigenvalue: %f\n", eigenvalue);
 
             // Validate eigenpair
-            double res = validate_eigenpair(&mat, x, eigenvalue);
+            double res = validate_eigenpair(&full_mat, x, eigenvalue);
 
-            printf("Max execution time: %f seconds\n\n", execution_time);
+            printf("\nMax execution time: %f seconds\n\n", execution_time);
+
+            free_coo(&full_mat);
         }
         
         // print_coo(&mat);

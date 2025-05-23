@@ -17,5 +17,6 @@ input="coo_input_data/matrix_10000x10000_d1.mtx"
 #input="coo_input_data/matrix_100x100_d10.mtx"
 #input="coo_input_data/matrix_10000x10000_d0.mtx"
 
-echo "running with $p processes"
+echo "________ Parallel run p=$p - $input ________"
+echo ""
 mpirun -np $p ./power_method $input
